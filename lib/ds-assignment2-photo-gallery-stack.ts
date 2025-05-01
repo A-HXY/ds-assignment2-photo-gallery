@@ -54,14 +54,14 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
     // Grant write permission to Lambda
     imageTable.grantWriteData(logImageLambda);
 
-    // 7. SNS subscription to SQS (for "image_upload" events only)
+    // 7. SNS subscription to SQS using message attributes filtering
     topic.addSubscription(new subs.SqsSubscription(imageQueue, {
-      filterPolicyWithMessageBody: {
+      filterPolicy: {
         type: sns.SubscriptionFilter.stringFilter({
           allowlist: ['image_upload']
         })
       }
-    }));    
+    }));
 
     // Output important resource names
     new cdk.CfnOutput(this, 'BucketName', {
