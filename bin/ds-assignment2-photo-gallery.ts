@@ -1,88 +1,20 @@
-import * as cdk from "aws-cdk-lib";
-import { Construct } from "constructs";
-import * as s3 from "aws-cdk-lib/aws-s3";
-import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
-import * as sns from "aws-cdk-lib/aws-sns";
-import * as sqs from "aws-cdk-lib/aws-sqs";
-import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
-import * as lambda from "aws-cdk-lib/aws-lambda";
-import * as lambdanode from "aws-cdk-lib/aws-lambda-nodejs";
-import * as events from "aws-cdk-lib/aws-lambda-event-sources";
+#!/usr/bin/env node
+import * as cdk from 'aws-cdk-lib';
+import { DsAssignment2PhotoGalleryStack } from '../lib/ds-assignment2-photo-gallery-stack';
 
-export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
-    super(scope, id, props);
+const app = new cdk.App();
+new DsAssignment2PhotoGalleryStack(app, 'DsAssignment2PhotoGalleryStack', {
+  /* If you don't specify 'env', this stack will be environment-agnostic.
+   * Account/Region-dependent features and context lookups will not work,
+   * but a single synthesized template can be deployed anywhere. */
 
-    // S3 Bucket
-    const imageBucket = new s3.Bucket(this, "PhotoGalleryImageBucket", {
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
-    });
+  /* Uncomment the next line to specialize this stack for the AWS Account
+   * and Region that are implied by the current CLI configuration. */
+  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
 
-    // DynamoDB table
-    const imageTable = new dynamodb.Table(this, "ImageTable", {
-      partitionKey: { name: "id", type: dynamodb.AttributeType.STRING },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
+  /* Uncomment the next line if you know exactly what Account and Region you
+   * want to deploy the stack to. */
+  // env: { account: '123456789012', region: 'us-east-1' },
 
-    // SNS Topic
-    const imageTopic = new sns.Topic(this, "ImageEventTopic", {
-      displayName: "PhotoGalleryImageTopic",
-    });
-
-    // SQS DLQ
-    const deadLetterQueue = new sqs.Queue(this, "DLQ", {
-      retentionPeriod: cdk.Duration.days(14),
-    });
-
-    // SQS Queue for logging images
-    const logImageQueue = new sqs.Queue(this, "LogImageQueue", {
-      deadLetterQueue: {
-        maxReceiveCount: 3,
-        queue: deadLetterQueue,
-      },
-      visibilityTimeout: cdk.Duration.seconds(30),
-    });
-
-    // Subscription with filter policy: eventType === 'ImageUpload'
-    imageTopic.addSubscription(
-      new subs.SqsSubscription(logImageQueue, {
-        filterPolicy: {
-          eventType: sns.SubscriptionFilter.stringFilter({
-            allowlist: ["ImageUpload"],
-          }),
-        },
-      })
-    );
-
-    // Lambda: Log Image
-    const logImageFn = new lambdanode.NodejsFunction(this, "LogImageFunction", {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      entry: `${__dirname}/../lambdas/logImage.ts`,
-      timeout: cdk.Duration.seconds(10),
-      environment: {
-        TABLE_NAME: imageTable.tableName,
-        BUCKET_NAME: imageBucket.bucketName,
-      },
-    });
-
-    // Grant permissions to lambda
-    imageTable.grantWriteData(logImageFn);
-    imageBucket.grantRead(logImageFn);
-
-    // Add event source from SQS
-    logImageFn.addEventSource(
-      new events.SqsEventSource(logImageQueue, {
-        batchSize: 5,
-      })
-    );
-
-    // Output for CLI use
-    new cdk.CfnOutput(this, "ImageBucketName", {
-      value: imageBucket.bucketName,
-    });
-    new cdk.CfnOutput(this, "TopicArn", {
-      value: imageTopic.topicArn,
-    });
-  }
-}
+  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+});
