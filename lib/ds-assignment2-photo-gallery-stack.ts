@@ -8,42 +8,49 @@ import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as lambdanode from "aws-cdk-lib/aws-lambda-nodejs";
 import * as events from "aws-cdk-lib/aws-lambda-event-sources";
+import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 
 export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // 1. Create the S3 bucket for image uploads
+    // 1. S3 Bucket for image uploads
     const imageBucket = new s3.Bucket(this, "ImageUploadBucket", {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
 
-    // 2. Create the Dead Letter Queue for invalid image formats
+    // 2. DLQ for invalid image formats
     const deadLetterQueue = new sqs.Queue(this, "DLQ", {
       queueName: "InvalidImageDLQ",
       retentionPeriod: cdk.Duration.days(14),
     });
 
-    // 3. Create the SNS Topic for image upload events
+    // 3. SNS Topic
     const uploadTopic = new sns.Topic(this, "ImageUploadTopic", {
       displayName: "Image Upload Topic",
     });
 
-    // 4. Create the SQS queue subscribed to the topic
+    // 4. SQS Queue subscribed to SNS
     const imageQueue = new sqs.Queue(this, "ImageUploadQueue", {
       receiveMessageWaitTime: cdk.Duration.seconds(10),
     });
 
     uploadTopic.addSubscription(new subs.SqsSubscription(imageQueue));
 
-    // 5. Configure S3 to notify SNS when an object is created
+    // 5. S3 notification to SNS
     imageBucket.addEventNotification(
       s3.EventType.OBJECT_CREATED,
       new s3n.SnsDestination(uploadTopic)
     );
 
-    // 6. Lambda to log valid image uploads
+    // 6. DynamoDB Table for image records
+    const imageTable = new dynamodb.Table(this, "ImageTable", {
+      partitionKey: { name: "id", type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // 7. Lambda: Log valid image uploads
     const logImageFn = new lambdanode.NodejsFunction(this, "LogImageFn", {
       runtime: lambda.Runtime.NODEJS_20_X,
       entry: `${__dirname}/../lambdas/logImage.ts`,
@@ -56,11 +63,10 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
         DLQ_URL: deadLetterQueue.queueUrl,
       },
     });
-    
-    imageBucket.grantRead(logImageFn);
-    deadLetterQueue.grantSendMessages(logImageFn); 
 
-    // 7. Trigger logImageFn from SQS queue
+    imageBucket.grantRead(logImageFn);
+    deadLetterQueue.grantSendMessages(logImageFn);
+
     logImageFn.addEventSource(
       new events.SqsEventSource(imageQueue, {
         batchSize: 5,
@@ -68,7 +74,7 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
       })
     );
 
-    // 8. Lambda to delete invalid files from DLQ
+    // 8. Lambda: Remove invalid image
     const removeImageFn = new lambdanode.NodejsFunction(this, "RemoveImageFn", {
       architecture: lambda.Architecture.ARM_64,
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -89,7 +95,30 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
 
     imageBucket.grantDelete(removeImageFn);
 
-    // Output bucket name for CLI testing
+    // 9. Lambda: Add Metadata
+    const addMetadataFn = new lambdanode.NodejsFunction(this, "AddMetadataFn", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: `${__dirname}/../lambdas/addMetadata.ts`,
+      handler: "handler",
+      environment: {
+        REGION: "eu-west-1",
+        TABLE_NAME: imageTable.tableName,
+      },
+    });
+
+    uploadTopic.addSubscription(
+      new subs.LambdaSubscription(addMetadataFn, {
+        filterPolicy: {
+          metadata_type: sns.SubscriptionFilter.stringFilter({
+            allowlist: ["Caption", "Date", "Name"],
+          }),
+        },
+      })
+    );
+
+    imageTable.grantWriteData(addMetadataFn);
+
+    // 10. Output bucket name
     new cdk.CfnOutput(this, "BucketName", {
       value: imageBucket.bucketName,
     });
