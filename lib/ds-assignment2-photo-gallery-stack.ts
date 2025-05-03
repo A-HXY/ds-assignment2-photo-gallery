@@ -57,7 +57,19 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
     const deadLetterQueue = new sqs.Queue(this, "DLQ", {
       queueName: "InvalidImageDLQ",
       retentionPeriod: cdk.Duration.days(14),
-    });    
+    });
+    
+    //Connect RemoveImage Lambda to DLQ
+    const removeImageFn = new lambdanode.NodejsFunction(this, "RemoveImageFn", {
+      architecture: lambda.Architecture.ARM_64,
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: `${__dirname}/../lambdas/removeImage.ts`,
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 128,
+      environment: {
+        REGION: "eu-west-1",
+      },
+    });
 
     // Grant read access to the bucket
     imageBucket.grantRead(logImageFn);
@@ -69,6 +81,15 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
         maxBatchingWindow: cdk.Duration.seconds(5),
       })
     );
+
+    removeImageFn.addEventSource(
+      new events.SqsEventSource(deadLetterQueue, {
+        batchSize: 5,
+        maxBatchingWindow: cdk.Duration.seconds(5),
+      })
+    );
+    
+    bucket.grantDelete(removeImageFn);
 
     // Output bucket name for testing
     new cdk.CfnOutput(this, "BucketName", {
