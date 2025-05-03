@@ -1,9 +1,3 @@
 {
-    "id": "test-image.jpeg",
-    "date": "01/05/2025",
-    "update": {
-      "status": "Pass",
-      "reason": "Excellent quality"
-    }
-  }
-  
+  "default": "{ \"id\": \"test-image.jpeg\", \"date\": \"2025-05-02\", \"update\": { \"status\": \"Pass\", \"reason\": \"Good resolution and composition\" } }"
+}

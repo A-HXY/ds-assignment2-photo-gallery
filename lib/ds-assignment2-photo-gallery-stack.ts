@@ -134,7 +134,9 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
     uploadTopic.addSubscription(
       new subs.LambdaSubscription(updateStatusFn, {
         filterPolicyWithMessageBody: {
-          update: sns.FilterOrPolicy.filter(sns.SubscriptionFilter.existsFilter())
+          update: sns.FilterOrPolicy.filter(
+            sns.SubscriptionFilter.existsFilter()
+          )
         }
       })
     );
@@ -160,7 +162,9 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
     uploadTopic.addSubscription(
       new subs.LambdaSubscription(confirmationMailerFn, {
         filterPolicyWithMessageBody: {
-          update: sns.FilterOrPolicy.filter(sns.SubscriptionFilter.existsFilter())
+          update: sns.FilterOrPolicy.filter(
+            sns.SubscriptionFilter.existsFilter()
+          )
         }
       })
     );
