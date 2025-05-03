@@ -134,16 +134,14 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
     uploadTopic.addSubscription(
       new subs.LambdaSubscription(updateStatusFn, {
         filterPolicyWithMessageBody: {
-          update: sns.FilterOrPolicy.policy({
-            exists: sns.SubscriptionFilter.existsFilter()
-          })
+          update: sns.SubscriptionFilter.existsFilter() as unknown as sns.FilterOrPolicy
         }
       })
-    );    
+    );        
 
     imageTable.grantWriteData(updateStatusFn);
 
-    // 12. Lambda: Confirmation Mailer
+    // 11. Lambda: Confirmation Mailer
     const confirmationMailerFn = new lambdanode.NodejsFunction(
       this,
       "ConfirmationMailerFn",
@@ -162,12 +160,10 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
     uploadTopic.addSubscription(
       new subs.LambdaSubscription(confirmationMailerFn, {
         filterPolicyWithMessageBody: {
-          update: sns.FilterOrPolicy.policy({
-            exists: sns.SubscriptionFilter.existsFilter()
-          })
+          update: sns.SubscriptionFilter.existsFilter() as unknown as sns.FilterOrPolicy
         }
       })
-    );    
+    );
 
     imageTable.grantReadData(confirmationMailerFn);
 
