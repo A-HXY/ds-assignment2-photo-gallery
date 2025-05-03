@@ -61,11 +61,13 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
         BUCKET_NAME: imageBucket.bucketName,
         REGION: "eu-west-1",
         DLQ_URL: deadLetterQueue.queueUrl,
+        TABLE_NAME: imageTable.tableName,
       },
     });
 
     imageBucket.grantRead(logImageFn);
     deadLetterQueue.grantSendMessages(logImageFn);
+    imageTable.grantWriteData(logImageFn);
 
     logImageFn.addEventSource(
       new events.SqsEventSource(imageQueue, {
@@ -118,7 +120,61 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
 
     imageTable.grantWriteData(addMetadataFn);
 
-    // 10. Output bucket name
+    // 10. Lambda: Update Status
+    const updateStatusFn = new lambdanode.NodejsFunction(this, "UpdateStatusFn", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: `${__dirname}/../lambdas/updateStatus.ts`,
+      handler: "handler",
+      environment: {
+        REGION: "eu-west-1",
+        TABLE_NAME: imageTable.tableName,
+      },
+    });
+
+    uploadTopic.addSubscription(
+      new subs.LambdaSubscription(updateStatusFn, {
+        filterPolicy: {
+          metadata_type: sns.SubscriptionFilter.existsFilter(),
+        },
+        filterPolicyWithMessageBody: {
+          update: sns.FilterOrPolicy.policy(
+            sns.SubscriptionFilter.existsFilter()
+          ),
+        },
+      })
+    );
+
+    imageTable.grantWriteData(updateStatusFn);
+
+    // 12. Lambda: Confirmation Mailer
+    const confirmationMailerFn = new lambdanode.NodejsFunction(
+      this,
+      "ConfirmationMailerFn",
+      {
+        runtime: lambda.Runtime.NODEJS_20_X,
+        entry: `${__dirname}/../lambdas/confirmationMailer.ts`,
+        handler: "handler",
+        environment: {
+          REGION: "eu-west-1",
+          TABLE_NAME: imageTable.tableName,
+          SOURCE_EMAIL: "verified-email@example.com",
+        },
+      }
+    );
+
+    uploadTopic.addSubscription(
+      new subs.LambdaSubscription(confirmationMailerFn, {
+        filterPolicyWithMessageBody: {
+          update: sns.FilterOrPolicy.policy(
+            sns.SubscriptionFilter.existsFilter()
+          ),
+        },
+      })
+    );
+
+    imageTable.grantReadData(confirmationMailerFn);
+
+    // 12. Output bucket name
     new cdk.CfnOutput(this, "BucketName", {
       value: imageBucket.bucketName,
     });
