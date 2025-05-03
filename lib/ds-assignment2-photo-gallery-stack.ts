@@ -46,8 +46,11 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(10),
       memorySize: 128,
       environment: {
-        BUCKET_NAME: imageBucket.bucketName,
+        BUCKET_NAME: bucket.bucketName,
+        REGION: "eu-west-1",
       },
+      deadLetterQueueEnabled: true,
+      deadLetterQueue: deadLetterQueue,
     });
     
     //Create a Dead Letter Queue
