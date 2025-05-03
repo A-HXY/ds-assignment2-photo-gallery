@@ -132,7 +132,13 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
     });
 
     uploadTopic.addSubscription(
-      new subs.LambdaSubscription(updateStatusFn)
+      new subs.LambdaSubscription(updateStatusFn, {
+        filterPolicyWithMessageBody: {
+          update: sns.FilterOrPolicy.filter(
+            sns.SubscriptionFilter.existsFilter()
+          )
+        }
+      } as any)
     );
 
     imageTable.grantWriteData(updateStatusFn);
