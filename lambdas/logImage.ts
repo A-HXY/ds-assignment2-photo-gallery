@@ -11,8 +11,9 @@ export const handler: SQSHandler = async (event) => {
   console.log("SQS Event: ", JSON.stringify(event));
 
   for (const record of event.Records) {
-    const body = JSON.parse(record.body);
-    const snsMessage = JSON.parse(body.Message);
+    try{
+    const snsMessage = JSON.parse(record.body);
+    const s3Event = JSON.parse(snsMessage.Message);
 
     for (const s3Record of snsMessage.Records) {
       const bucketName = s3Record.s3.bucket.name;
@@ -20,6 +21,7 @@ export const handler: SQSHandler = async (event) => {
         s3Record.s3.object.key.replace(/\+/g, " ")
       );
 
+      // Validate file type
       if (!objectKey.endsWith(".jpeg") && !objectKey.endsWith(".png")) {
         throw new Error("Unsupported file type: " + objectKey);
       }
@@ -29,12 +31,11 @@ export const handler: SQSHandler = async (event) => {
         Key: objectKey,
       };
 
-      try {
         const image = await s3.send(new GetObjectCommand(getObjectParams));
         console.log("Valid image received:", objectKey);
-      } catch (err) {
-        console.error("Error downloading image:", err);
       }
-    }
+    } catch (err) {
+        console.error("LogImageFn Error:", err);
+      }
   }
 };
