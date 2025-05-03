@@ -49,6 +49,12 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
         BUCKET_NAME: imageBucket.bucketName,
       },
     });
+    
+    //Create a Dead Letter Queue
+    const deadLetterQueue = new sqs.Queue(this, "DLQ", {
+      queueName: "InvalidImageDLQ",
+      retentionPeriod: cdk.Duration.days(14),
+    });    
 
     // Grant read access to the bucket
     imageBucket.grantRead(logImageFn);
