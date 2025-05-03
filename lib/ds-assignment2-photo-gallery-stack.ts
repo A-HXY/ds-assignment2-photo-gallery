@@ -1,4 +1,4 @@
-import * as cdk from "aws-cdk-lib";
+import * as cdk from "aws-cdk-lib"; 
 import { Construct } from "constructs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as sns from "aws-cdk-lib/aws-sns";
@@ -134,10 +134,10 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
     uploadTopic.addSubscription(
       new subs.LambdaSubscription(updateStatusFn, {
         filterPolicyWithMessageBody: {
-          update: sns.SubscriptionFilter.existsFilter() as unknown as sns.FilterOrPolicy
+          update: sns.FilterOrPolicy.filter(sns.SubscriptionFilter.existsFilter())
         }
       })
-    );        
+    );
 
     imageTable.grantWriteData(updateStatusFn);
 
@@ -152,7 +152,7 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
         environment: {
           REGION: "eu-west-1",
           TABLE_NAME: imageTable.tableName,
-          SOURCE_EMAIL: "your_verified_email@example.com", 
+          SOURCE_EMAIL: "your_verified_email@example.com",
         },
       }
     );
@@ -160,7 +160,7 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
     uploadTopic.addSubscription(
       new subs.LambdaSubscription(confirmationMailerFn, {
         filterPolicyWithMessageBody: {
-          update: sns.SubscriptionFilter.existsFilter() as unknown as sns.FilterOrPolicy
+          update: sns.FilterOrPolicy.filter(sns.SubscriptionFilter.existsFilter())
         }
       })
     );
