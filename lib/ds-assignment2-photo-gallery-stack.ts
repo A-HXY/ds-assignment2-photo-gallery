@@ -133,16 +133,13 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
 
     uploadTopic.addSubscription(
       new subs.LambdaSubscription(updateStatusFn, {
-        filterPolicy: {
-          metadata_type: sns.SubscriptionFilter.existsFilter(),
-        },
         filterPolicyWithMessageBody: {
-          update: sns.FilterOrPolicy.policy(
-            sns.SubscriptionFilter.existsFilter()
-          ),
-        },
+          update: sns.FilterOrPolicy.policy({
+            exists: sns.SubscriptionFilter.existsFilter()
+          })
+        }
       })
-    );
+    );    
 
     imageTable.grantWriteData(updateStatusFn);
 
@@ -157,7 +154,7 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
         environment: {
           REGION: "eu-west-1",
           TABLE_NAME: imageTable.tableName,
-          SOURCE_EMAIL: "verified-email@example.com",
+          SOURCE_EMAIL: "your_verified_email@example.com", 
         },
       }
     );
@@ -165,12 +162,12 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
     uploadTopic.addSubscription(
       new subs.LambdaSubscription(confirmationMailerFn, {
         filterPolicyWithMessageBody: {
-          update: sns.FilterOrPolicy.policy(
-            sns.SubscriptionFilter.existsFilter()
-          ),
-        },
+          update: sns.FilterOrPolicy.policy({
+            exists: sns.SubscriptionFilter.existsFilter()
+          })
+        }
       })
-    );
+    );    
 
     imageTable.grantReadData(confirmationMailerFn);
 
