@@ -62,6 +62,7 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
         REGION: "eu-west-1",
         DLQ_URL: deadLetterQueue.queueUrl,
         TABLE_NAME: imageTable.tableName,
+        SOURCE_EMAIL: "20109224@mail.wit.ie",
       },
     });
 
