@@ -1,29 +1,34 @@
 import { SQSHandler } from "aws-lambda";
-import {
-  S3Client,
-  GetObjectCommand,
-  GetObjectCommandInput,
-} from "@aws-sdk/client-s3";
+import { S3Client,GetObjectCommand,GetObjectCommandInput, } from "@aws-sdk/client-s3";
+import { SQSClient,SendMessageCommand, } from "@aws-sdk/client-sqs";
 
 const s3 = new S3Client({ region: process.env.REGION || "eu-west-1" });
+const sqs = new SQSClient({ region: process.env.REGION || "eu-west-1" });
+const DLQ_URL = process.env.DLQ_URL!;
 
 export const handler: SQSHandler = async (event) => {
   console.log("SQS Event: ", JSON.stringify(event));
 
   for (const record of event.Records) {
-    try{
     const snsMessage = JSON.parse(record.body);
     const s3Event = JSON.parse(snsMessage.Message);
 
-    for (const s3Record of snsMessage.Records) {
+    for (const s3Record of s3Event.Records) {
       const bucketName = s3Record.s3.bucket.name;
       const objectKey = decodeURIComponent(
         s3Record.s3.object.key.replace(/\+/g, " ")
       );
 
-      // Validate file type
       if (!objectKey.endsWith(".jpeg") && !objectKey.endsWith(".png")) {
-        throw new Error("Unsupported file type: " + objectKey);
+        console.warn("Unsupported file type detected:", objectKey);
+
+        await sqs.send(
+          new SendMessageCommand({
+            QueueUrl: DLQ_URL,
+            MessageBody: JSON.stringify({ Records: [s3Record] }),
+          })
+        );
+        continue;
       }
 
       const getObjectParams: GetObjectCommandInput = {
@@ -31,11 +36,13 @@ export const handler: SQSHandler = async (event) => {
         Key: objectKey,
       };
 
+      try {
         const image = await s3.send(new GetObjectCommand(getObjectParams));
         console.log("Valid image received:", objectKey);
+      } catch (err) {
+        console.error("Error downloading image:", err);
       }
-    } catch (err) {
-        console.error("LogImageFn Error:", err);
-      }
+    }
   }
 };
+

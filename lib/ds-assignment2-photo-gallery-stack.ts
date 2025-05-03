@@ -53,12 +53,12 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
       environment: {
         BUCKET_NAME: imageBucket.bucketName,
         REGION: "eu-west-1",
+        DLQ_URL: deadLetterQueue.queueUrl,
       },
-      deadLetterQueueEnabled: true,
-      deadLetterQueue: deadLetterQueue,
     });
-
+    
     imageBucket.grantRead(logImageFn);
+    deadLetterQueue.grantSendMessages(logImageFn); 
 
     // 7. Trigger logImageFn from SQS queue
     logImageFn.addEventSource(
