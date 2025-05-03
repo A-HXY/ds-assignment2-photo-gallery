@@ -20,7 +20,7 @@ export const handler: SQSHandler = async (event) => {
       );
 
       if (!objectKey.endsWith(".jpeg") && !objectKey.endsWith(".png")) {
-        console.warn("Unsupported file type detected:", objectKey);
+        console.log("Invalid file type detected:", objectKey);
 
         await sqs.send(
           new SendMessageCommand({
@@ -28,6 +28,8 @@ export const handler: SQSHandler = async (event) => {
             MessageBody: JSON.stringify({ Records: [s3Record] }),
           })
         );
+        
+        console.log("Message sent to DLQ.");
         continue;
       }
 
