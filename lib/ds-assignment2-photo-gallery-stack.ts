@@ -1,87 +1,69 @@
-import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
-
-import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as sns from 'aws-cdk-lib/aws-sns';
-import * as sqs from 'aws-cdk-lib/aws-sqs';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
-import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as cdk from "aws-cdk-lib";
+import { Construct } from "constructs";
+import * as s3 from "aws-cdk-lib/aws-s3";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
+import * as s3n from "aws-cdk-lib/aws-s3-notifications";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as lambdanode from "aws-cdk-lib/aws-lambda-nodejs";
+import * as events from "aws-cdk-lib/aws-lambda-event-sources";
 
 export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // 1. S3 Bucket for Image Upload
-    const imageBucket = new s3.Bucket(this, 'ImageBucket', {
+    // 1. Create the S3 bucket for image uploads
+    const imageBucket = new s3.Bucket(this, "ImageUploadBucket", {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
 
-    // 2. DynamoDB Table to store image records
-    const imageTable = new dynamodb.Table(this, 'ImageTable', {
-      partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    // 2. Create the SNS Topic for image upload events
+    const uploadTopic = new sns.Topic(this, "ImageUploadTopic", {
+      displayName: "Image Upload Topic",
     });
 
-    // 3. SNS Topic to distribute messages
-    const topic = new sns.Topic(this, 'ImageTopic');
-
-    // 4. Dead Letter Queue (DLQ)
-    const dlq = new sqs.Queue(this, 'ImageDLQ', {
-      queueName: 'ImageDLQ'
+    // 3. Create an SQS queue to receive events from the topic
+    const imageQueue = new sqs.Queue(this, "ImageUploadQueue", {
+      receiveMessageWaitTime: cdk.Duration.seconds(10),
     });
 
-    // 5. SQS Queue subscribed to SNS Topic (for Log Image)
-    const imageQueue = new sqs.Queue(this, 'ImageQueue', {
-      deadLetterQueue: {
-        maxReceiveCount: 3,
-        queue: dlq
-      },
-      queueName: 'ImageQueue'
-    });
+    // 4. Subscribe the queue to the SNS topic
+    uploadTopic.addSubscription(new subs.SqsSubscription(imageQueue));
 
-    // 6. Lambda: Log Image Uploads (subscribed to SQS)
-    const logImageLambda = new lambda.Function(this, 'LogImageLambda', {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'index.handler',
-      code: lambda.Code.fromAsset('lambdas/logImage'),
+    // 5. Configure S3 to notify SNS on object creation
+    imageBucket.addEventNotification(
+      s3.EventType.OBJECT_CREATED,
+      new s3n.SnsDestination(uploadTopic)
+    );
+
+    // 6. Lambda function to log image upload info
+    const logImageFn = new lambdanode.NodejsFunction(this, "LogImageFn", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: `${__dirname}/../lambdas/logImage.ts`,
+      handler: "handler",
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 128,
       environment: {
-        TABLE_NAME: imageTable.tableName
-      }
+        BUCKET_NAME: imageBucket.bucketName,
+      },
     });
 
-    // Grant write permission to Lambda
-    imageTable.grantWriteData(logImageLambda);
+    // Grant read access to the bucket
+    imageBucket.grantRead(logImageFn);
 
-    // 7. SNS subscription to SQS using message attributes filtering
-    topic.addSubscription(new subs.SqsSubscription(imageQueue, {
-      filterPolicy: {
-        type: sns.SubscriptionFilter.stringFilter({
-          allowlist: ['image_upload']
-        })
-      }
-    }));
+    // 7. Trigger the Lambda from the SQS queue
+    logImageFn.addEventSource(
+      new events.SqsEventSource(imageQueue, {
+        batchSize: 5,
+        maxBatchingWindow: cdk.Duration.seconds(5),
+      })
+    );
 
-    // Output important resource names
-    new cdk.CfnOutput(this, 'BucketName', {
+    // Output bucket name for testing
+    new cdk.CfnOutput(this, "BucketName", {
       value: imageBucket.bucketName,
-      description: 'S3 Bucket for image uploads',
-    });
-
-    new cdk.CfnOutput(this, 'TopicArn', {
-      value: topic.topicArn,
-      description: 'SNS Topic ARN for publishing messages',
-    });
-
-    new cdk.CfnOutput(this, 'QueueUrl', {
-      value: imageQueue.queueUrl,
-      description: 'SQS Queue URL for image uploads',
-    });
-
-    new cdk.CfnOutput(this, 'TableName', {
-      value: imageTable.tableName,
-      description: 'DynamoDB table storing image metadata',
     });
   }
 }
