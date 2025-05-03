@@ -132,13 +132,7 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
     });
 
     uploadTopic.addSubscription(
-      new subs.LambdaSubscription(updateStatusFn, {
-        filterPolicyWithMessageBody: {
-          update: sns.FilterOrPolicy.filter(
-            sns.SubscriptionFilter.existsFilter()
-          )
-        }
-      })
+      new subs.LambdaSubscription(updateStatusFn)
     );
 
     imageTable.grantWriteData(updateStatusFn);
@@ -166,7 +160,7 @@ export class DsAssignment2PhotoGalleryStack extends cdk.Stack {
             sns.SubscriptionFilter.existsFilter()
           )
         }
-      })
+      } as any)
     );
 
     imageTable.grantReadData(confirmationMailerFn);
